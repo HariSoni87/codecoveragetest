@@ -1,0 +1,149 @@
+apply plugin: 'com.android.application'
+apply plugin: 'jacoco'
+
+android {
+    compileSdkVersion 23
+    buildToolsVersion "23.0.2"
+
+    defaultConfig {
+        applicationId "cts.com.launch"
+        minSdkVersion 14
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner 'android.support.test.runner.AndroidJUnitRunner'
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+       debug{
+            testCoverageEnabled true
+        }
+    }
+    sourceSets {
+        androidTestCompile.setRoot('junittest_coverage_launch')
+        androidTestCompile {
+            java.srcDirs = ['launch/src/main/java', 'card/src/main/java', 'app/src/main/java']
+        }
+    }
+}
+
+dependencies {
+    compile project(':app')
+    compile project(':card')
+    androidTestCompile 'junit:junit:4.12'
+    testCompile 'junit:junit:4.12'
+    androidTestCompile "com.android.support.test.espresso:espresso-core:2.2.1" exclude group: 'com.google.code.findbugs' exclude group: 'javax.annotation' exclude group: 'com.android.support', module: 'support-annotations' exclude module: 'javax.annotation-api'
+    androidTestCompile "com.android.support.test.espresso:espresso-contrib:2.2.1" exclude group: 'com.google.code.findbugs' exclude group: 'javax.annotation' exclude group: 'com.android.support', module: 'support-annotations' exclude module: 'javax.annotation-api' exclude group: 'com.android.support', module: 'support-v4'
+    androidTestCompile "com.android.support.test.espresso:espresso-intents:2.2.1" exclude group: 'com.google.code.findbugs' exclude group: 'javax.annotation' exclude group: 'com.android.support', module: 'support-annotations' exclude module: 'javax.annotation-api'
+    compile fileTree(dir: 'libs', include: ['*.jar'])
+}
+
+def coverageSourceDirs = ['launch/src/main/java', 'card/src/main/java', 'app/src/main/java']
+def coverageClassDirectories = [fileTree(dir: 'launch/build/intermediates/classes/debug'),
+                                fileTree(dir: 'card/build/intermediates/classes/debug'),
+                                fileTree(dir: 'app/build/intermediates/classes/debug')]
+
+task jacocoTestReport(type: JacocoReport, dependsOn: 'testDebugUnitTest') {
+
+    def projects = new ArrayList()
+    subprojects.each { prj ->
+        projects.add(prj)
+    }
+
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+
+    jacocoClasspath = configurations['androidJacocoAnt']
+
+    def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*', '**/*Test*.*', 'android/**/*.*']
+    def debugTree = fileTree(dir: "${buildDir}/intermediates/classes/debug", excludes: fileFilter)
+    def mainSrc = "${project.projectDir}/src/main/java"
+
+    /*sourceDirectories = files([mainSrc])
+    classDirectories = files([debugTree])*/
+
+    additionalSourceDirs = files(coverageSourceDirs)
+    sourceDirectories = files(coverageSourceDirs)
+    classDirectories = files(coverageClassDirectories)
+
+/*
+    sourceDirectories = generateSourceFiles(projects)
+    classDirectories = generateClassDirs(projects)
+*/
+
+    executionData = files(["${buildDir}/jacoco/testDebugUnitTest.exec",
+                           "${buildDir}/outputs/code-coverage/connected/coverage.ec"
+    ])
+}
+
+
+
+
+
+/**
+ *  Generate a FileCollection of all projects source files
+ */
+FileCollection generateSourceFiles(Collection projects) {
+    def dirs = []
+
+    projects.each { prj ->
+        dirs.add("${prj.name}/src/main/java")
+    }
+
+    return files(dirs)
+}
+
+/**
+ *  Generate a FileCollection of all projects class files
+ */
+FileCollection generateClassDirs(Collection projects) {
+    def tree = fileTree('directory does not exists') // I know it's ugly :)
+
+    projects.each { prj ->
+        //noinspection GrReassignedInClosureLocalVar
+        tree += fileTree(
+                dir: "${prj.name}/build/intermediates/classes/debug",
+                excludes: [
+                        '**/R*.class',
+                        '**/BuildConfig*'
+                ]
+        )
+    }
+
+    return tree
+}
+
+
+//==============================//
+
+task discoverTestReport(type: JacocoReport, dependsOn: 'createDebugCoverageReport') {
+
+    def projects = new ArrayList()
+    subprojects.each { prj ->
+        projects.add(prj)
+    }
+
+    reports {
+        xml.enabled = true
+        html.enabled = true
+    }
+
+    jacocoClasspath = configurations['androidJacocoAnt']
+
+    def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*', '**/*Test*.*', 'android/**/*.*']
+    /*def debugTree = fileTree(dir: "${buildDir}/intermediates/classes/debug", excludes: fileFilter)
+    def mainSrc = "${project.projectDir}/src/main/java"
+
+    sourceDirectories = files([mainSrc])
+    classDirectories = files([debugTree])
+*/
+    sourceDirectories = generateSourceFiles(projects)
+    classDirectories = generateClassDirs(projects)
+
+    executionData = files(["${buildDir}/outputs/code-coverage/connected/coverage.ec"])
+}
